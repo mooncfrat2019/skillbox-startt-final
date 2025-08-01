@@ -154,6 +154,7 @@ jobs:
           ssh-add ~/.ssh/id_rsa
           ssh-add -L
           
+          sleep 30
           # Тестовое подключение
           first_ip_vpn=$(head -1 ip-files/vpn_private_ips.txt)
           echo === IP Check ===
@@ -161,7 +162,7 @@ jobs:
           curl ifconfig.me
           echo === Ping instance ===
           ping -c 4 $first_ip_vpn
-          nc -zvw 5 $first_ip_vpn 22
+          nc -zvw 5 $first_ip_vpn 22 || echo "::warning::Port check failed"
           
           echo "=== Testing connection to $first_ip_vpn ==="
           ssh -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn echo "SSH test successful" || {
@@ -170,7 +171,7 @@ jobs:
           }
           
           first_ip_center=$(head -1 ip-files/center_private_ips.txt)
-          # nc -zvw 5 $first_ip_center 22
+          nc -zvw 5 $first_ip_center 22 || echo "::warning::Port check failed"
           echo "=== Testing connection to $first_ip_center ==="
           ssh -i ~/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
             echo "::error::SSH connection failed"
