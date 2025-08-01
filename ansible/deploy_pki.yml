@@ -2,7 +2,10 @@
 - name: "Развёртывание УЦ и VPN-сервера"
   hosts: all
   become: yes
+  gather_facts: no
   vars:
+    ansible_become_method: sudo
+    ansible_python_interpreter: /usr/bin/python3
     # Переменные для Easy-RSA
     ca_country: "{{ ca_country | default('RU') }}"
     ca_state: "{{ ca_state | default('Moscow') }}"
@@ -19,7 +22,9 @@
     vpn_clients: ['client1']
     center_host: "{{ groups['ca_servers'][0] }}"  # Первый сервер из группы CA
 
+
   tasks:
+    - debug: msg="Тест подключения"
     # === 1. Базовая настройка ===
     - name: "Обновление системы"
       apt:

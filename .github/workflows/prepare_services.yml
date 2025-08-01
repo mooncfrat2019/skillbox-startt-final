@@ -203,7 +203,7 @@ jobs:
                             "vpn_host":"'${vpn_host}'",
                             "super_user":"'${super_user}'",
                          }' \
-                         ${{ env.ANSIBLE_DIR }}/deploy_pki.yml --limit ca_servers
+                         ${{ env.ANSIBLE_DIR }}/deploy_pki.yml --limit ca_servers -vvv
 
       - name: Prepare VPN Server
         run: |
@@ -216,4 +216,4 @@ jobs:
                             "vpn_host":"'${vpn_host}'",
                             "super_user":"'${super_user}'",
                          }' \
-                         ${{ env.ANSIBLE_DIR }}/deploy_pki.yml --limit vpn_servers
+                         ${{ env.ANSIBLE_DIR }}/deploy_pki.yml --limit vpn_servers -vvv
