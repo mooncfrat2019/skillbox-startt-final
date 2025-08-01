@@ -126,6 +126,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Download IP files
+        uses: actions/download-artifact@v4
+        with:
+          name: ip-files
+          path: ip-files
+
       - name: Prepare known hosts
         run: |
           > ~/.ssh/known_hosts
@@ -170,6 +176,12 @@ jobs:
     runs-on: zix
     environment: production
     steps:
+      - name: Download IP files
+        uses: actions/download-artifact@v4
+        with:
+          name: ip-files
+          path: ip-files
+
       - name: Prepare CA
         run: |
           export super_user=ubuntu
