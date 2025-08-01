@@ -1,0 +1,12 @@
+name: check_private_key.yml
+on: [push]
+
+jobs:
+  check_key:
+    runs-on: zix
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: List files
+        run: ls -la /home
+
