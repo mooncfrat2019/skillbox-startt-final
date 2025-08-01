@@ -7,6 +7,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: List files
-        run: ls -la /home
+      - name: check access
+        run: |
+          whoami
+          cat ~/.ssh/id_rsa
 
