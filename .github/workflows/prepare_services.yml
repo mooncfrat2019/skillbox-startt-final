@@ -159,6 +159,11 @@ jobs:
           echo === IP Check ===
           echo "$first_ip_vpn"
           curl ifconfig.me
+          echo === Ping instance ===
+          ping -c 4 $first_ip_vpn
+          echo === Trace instance ===
+          traceroute -n $first_ip_vpn
+          curl -v telnet://$first_ip_vpn:22
           nc -zvw 5 $first_ip_vpn 22
           
           echo "=== Testing connection to $first_ip_vpn ==="
