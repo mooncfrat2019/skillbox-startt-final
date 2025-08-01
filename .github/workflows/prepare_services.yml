@@ -153,9 +153,12 @@ jobs:
           echo === Добавляем ключ в агент ===
           ssh-add ~/.ssh/id_rsa
           ssh-add -L
-
+          
           # Тестовое подключение
-          first_ip_vpn=$(head -1 ip-files/vpn_public_ips.txt)
+          first_ip_vpn=$(head -1 ip-files/vpn_private_ips.txt)
+          echo === IP Check ===
+          echo "$first_ip_vpn"
+          curl ifconfig.me
           nc -zvw 5 $first_ip_vpn 22
           
           echo "=== Testing connection to $first_ip_vpn ==="
@@ -164,7 +167,7 @@ jobs:
             exit 1
           }
           
-          first_ip_center=$(head -1 ip-files/center_public_ips.txt)
+          first_ip_center=$(head -1 ip-files/center_private_ips.txt)
           nc -zvw 5 $first_ip_center 22
           echo "=== Testing connection to $first_ip_center ==="
           ssh -vvv -i ~/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
@@ -188,8 +191,8 @@ jobs:
       - name: Prepare CA
         run: |
           export super_user=ubuntu
-          export center_host=$(head -n 1 ip-files/center_public_ips.txt)
-          export vpn_host=$(head -n 1 ip-files/vpn_public_ips.txt)
+          export center_host=$(head -n 1 ip-files/center_private_ips.txt)
+          export vpn_host=$(head -n 1 ip-files/vpn_private_ips.txt)
           ansible-playbook -i ${{ env.INVENTORY_FILE }} \
                         --extra-vars  '{
                             "center_host":"'${center_host}'",
@@ -201,8 +204,8 @@ jobs:
       - name: Prepare VPN Server
         run: |
           export super_user=ubuntu
-          export center_host=$(head -n 1 ip-files/center_public_ips.txt)
-          export vpn_host=$(head -n 1 ip-files/vpn_public_ips.txt)
+          export center_host=$(head -n 1 ip-files/center_private_ips.txt)
+          export vpn_host=$(head -n 1 ip-files/vpn_private_ips.txt)
           ansible-playbook -i ${{ env.INVENTORY_FILE }} \
                         --extra-vars  '{
                             "center_host":"'${center_host}'",
