@@ -119,6 +119,7 @@ jobs:
             ${{ env.TF_DIR }}/center_private_ips.txt
 
   configure-ssh-access:
+    needs: terraform-deploy
     runs-on: zix
     environment: production
     steps:
@@ -165,6 +166,7 @@ jobs:
            
 
   prepare-vpn:
+    needs: configure-ssh-access
     runs-on: zix
     environment: production
     steps:
