@@ -136,7 +136,7 @@ jobs:
         run: |
           > ~/.ssh/known_hosts
           # Добавляем хосты в known_hosts
-          for ip_file in ip-files/vpn_public_ips.txt ip-files/center_public_ips.txt; do
+          for ip_file in ip-files/vpn_public_ips.txt ip-files/center_public_ips.txt ip-files/center_private_ips.txt ip-files/vpn_private_ips.txt; do
             while read ip; do
               ip=$(echo "$ip" | tr -d '\r\n')
               if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -165,12 +165,19 @@ jobs:
           nc -zvw 5 $first_ip_vpn 22 || echo "::warning::Port check failed"
           
           echo "=== Testing connection to $first_ip_vpn ==="
-          timeout 15 ssh -T -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn "echo 'Test'"
+          ssh -T -o "ConnectTimeout=10" \
+          -o "StrictHostKeyChecking=no" \
+          -o "UserKnownHostsFile=/dev/null" \
+          -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn "echo 'OK'"
           
           first_ip_center=$(head -1 ip-files/center_private_ips.txt)
           nc -zvw 5 $first_ip_center 22 || echo "::warning::Port check failed"
           echo "=== Testing connection to $first_ip_center ==="
-          timeout 15 ssh -T -i ~/.ssh/id_rsa ubuntu@$first_ip_center "echo 'Test'"
+          ssh -T -o "ConnectTimeout=10" \
+          -o "GSSAPIAuthentication=no" \
+          -o "StrictHostKeyChecking=no" \
+          -o "UserKnownHostsFile=/dev/null" \
+          -i ~/.ssh/id_rsa ubuntu@$first_ip_center "echo 'OK'"
           
            
 
