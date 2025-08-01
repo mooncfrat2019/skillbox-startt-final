@@ -165,18 +165,12 @@ jobs:
           nc -zvw 5 $first_ip_vpn 22 || echo "::warning::Port check failed"
           
           echo "=== Testing connection to $first_ip_vpn ==="
-          ssh -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn echo "SSH test successful" || {
-            echo "::error::SSH connection failed"
-            exit 1
-          }
+          timeout 15 ssh -T -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn "echo 'Test'"
           
           first_ip_center=$(head -1 ip-files/center_private_ips.txt)
           nc -zvw 5 $first_ip_center 22 || echo "::warning::Port check failed"
           echo "=== Testing connection to $first_ip_center ==="
-          ssh -i ~/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
-            echo "::error::SSH connection failed"
-            exit 1
-          }
+          timeout 15 ssh -T -i ~/.ssh/id_rsa ubuntu@$first_ip_center "echo 'Test'"
           
            
 
