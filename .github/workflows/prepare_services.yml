@@ -136,16 +136,7 @@ jobs:
         run: |
           > ~/.ssh/known_hosts
           # Добавляем хосты в known_hosts
-          for ip_file in ip-files/vpn_public_ips.txt ip-files/vpn_public_ips.txt; do
-            while read ip; do
-              ip=$(echo "$ip" | tr -d '\r\n')
-              if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                echo "Adding $ip to known_hosts"
-                ssh-keyscan -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null || true
-              fi
-            done < "$ip_file"
-          done
-          for ip_file in ip-files/center_public_ips.txt ip-files/center_public_ips.txt; do
+          for ip_file in ip-files/vpn_public_ips.txt ip-files/center_public_ips.txt; do
             while read ip; do
               ip=$(echo "$ip" | tr -d '\r\n')
               if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -158,13 +149,13 @@ jobs:
           # Тестовое подключение
           first_ip_vpn=$(head -1 ip-files/vpn_public_ips.txt)
           echo "=== Testing connection to $first_ip_vpn ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn echo "SSH test successful" || {
+          ssh -vvv -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn echo "SSH test successful" || {
             echo "::error::SSH connection failed"
             exit 1
           }
           first_ip_center=$(head -1 ip-files/center_public_ips.txt)
           echo "=== Testing connection to $first_ip_center ==="
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
+          ssh -vvv -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
             echo "::error::SSH connection failed"
             exit 1
           }
