@@ -120,7 +120,7 @@ jobs:
 
   configure-ssh-access:
     needs: terraform-deploy
-    runs-on: zix
+    runs-on: vk
     environment: production
     steps:
       - name: Checkout code
@@ -159,7 +159,7 @@ jobs:
           nc -zvw 5 $first_ip_vpn 22
           
           echo "=== Testing connection to $first_ip_vpn ==="
-          ssh -vvv -i /home/vex/.ssh/id_rsa ubuntu@$first_ip_vpn echo "SSH test successful" || {
+          ssh -vvv -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn echo "SSH test successful" || {
             echo "::error::SSH connection failed"
             exit 1
           }
@@ -167,7 +167,7 @@ jobs:
           first_ip_center=$(head -1 ip-files/center_public_ips.txt)
           nc -zvw 5 $first_ip_center 22
           echo "=== Testing connection to $first_ip_center ==="
-          ssh -vvv -i /home/vex/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
+          ssh -vvv -i ~/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
             echo "::error::SSH connection failed"
             exit 1
           }
@@ -176,7 +176,7 @@ jobs:
 
   prepare-vpn:
     needs: configure-ssh-access
-    runs-on: zix
+    runs-on: vk
     environment: production
     steps:
       - name: Download IP files
