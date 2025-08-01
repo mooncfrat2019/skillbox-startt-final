@@ -136,7 +136,7 @@ jobs:
         run: |
           > ~/.ssh/known_hosts
           # Добавляем хосты в known_hosts
-          for ip_file in ip-files/vpn_public_ips.txt ip-files/tdb_public_ips.txt; do
+          for ip_file in ip-files/vpn_public_ips.txt ip-files/vpn_public_ips.txt; do
             while read ip; do
               ip=$(echo "$ip" | tr -d '\r\n')
               if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -190,7 +190,7 @@ jobs:
           ansible-playbook -i ${{ env.INVENTORY_FILE }} \
                         --extra-vars  '{
                             "center_host":"'${center_host}'",
-                            "tdb_2_public":"'${tdb_2_public}'",
+                            "vpn_host":"'${vpn_host}'",
                             "super_user":"'${super_user}'",
                          }' \
                          ${{ env.ANSIBLE_DIR }}/deploy_pki.yml --limit ca_servers
@@ -203,7 +203,7 @@ jobs:
           ansible-playbook -i ${{ env.INVENTORY_FILE }} \
                         --extra-vars  '{
                             "center_host":"'${center_host}'",
-                            "tdb_2_public":"'${tdb_2_public}'",
+                            "vpn_host":"'${vpn_host}'",
                             "super_user":"'${super_user}'",
                          }' \
                          ${{ env.ANSIBLE_DIR }}/deploy_pki.yml --limit vpn_servers
