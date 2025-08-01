@@ -149,13 +149,13 @@ jobs:
           # Тестовое подключение
           first_ip_vpn=$(head -1 ip-files/vpn_public_ips.txt)
           echo "=== Testing connection to $first_ip_vpn ==="
-          ssh -vvv -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn echo "SSH test successful" || {
+          ssh -vvv -o StrictHostKeyChecking=no -i /home/vex/.ssh/id_rsa ubuntu@$first_ip_vpn echo "SSH test successful" || {
             echo "::error::SSH connection failed"
             exit 1
           }
           first_ip_center=$(head -1 ip-files/center_public_ips.txt)
           echo "=== Testing connection to $first_ip_center ==="
-          ssh -vvv -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
+          ssh -vvv -o StrictHostKeyChecking=no -i /home/vex/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
             echo "::error::SSH connection failed"
             exit 1
           }
