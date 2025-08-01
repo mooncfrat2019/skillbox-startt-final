@@ -161,9 +161,6 @@ jobs:
           curl ifconfig.me
           echo === Ping instance ===
           ping -c 4 $first_ip_vpn
-         
-          echo === telnet 22 port ===
-          curl -v telnet://$first_ip_vpn:22
           # nc -zvw 5 $first_ip_vpn 22
           
           echo "=== Testing connection to $first_ip_vpn ==="
