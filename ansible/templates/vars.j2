@@ -1,0 +1,12 @@
+set_var EASYRSA_REQ_COUNTRY    "{{ ca_country }}"
+set_var EASYRSA_REQ_PROVINCE   "{{ ca_state }}"
+set_var EASYRSA_REQ_CITY       "{{ ca_locality }}"
+set_var EASYRSA_REQ_ORG        "{{ ca_organization }}"
+set_var EASYRSA_REQ_EMAIL      "zix@vk.com"
+set_var EASYRSA_REQ_OU         "IT"
+set_var EASYRSA_CA_EXPIRE      "{{ ca_days }}"
+set_var EASYRSA_CERT_EXPIRE    "{{ cert_days }}"
+set_var EASYRSA_CRL_DAYS       "{{ cert_days + 7 }}"
+set_var EASYRSA_DIGEST         "sha256"
+set_var EASYRSA_KEY_SIZE       2048
+set_var EASYRSA_ALGO           rsa

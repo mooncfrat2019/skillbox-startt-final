@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        echo "Удаление конфигурационных файлов (purge)..."
+        rm -rf /etc/pki/
+        ;;
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        # Ничего не делаем (файлы остаются)
+        ;;
+    *)
+        echo "Usage: $0 {purge|remove|upgrade}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

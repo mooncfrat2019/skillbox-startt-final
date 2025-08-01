@@ -1,0 +1,190 @@
+---
+- name: "Развёртывание УЦ и VPN-сервера"
+  hosts: all
+  become: yes
+  vars:
+    # Переменные для Easy-RSA
+    ca_country: "{{ ca_country | default('RU') }}"
+    ca_state: "{{ ca_state | default('Moscow') }}"
+    ca_locality: "{{ ca_locality | default('Moscow') }}"
+    ca_organization: "{{ ca_organization | default('NEXUS VPN') }}"
+    ca_email: "{{ ca_email | default('zix@vk.com') }}"
+    ca_ou: "{{ ca_ou | default('IT') }}"
+    ca_days: "{{ ca_days | default(3650) }}"
+    cert_days: "{{ cert_days | default(365) }}"
+
+    # Для VPN
+    openvpn_port: 1194
+    openvpn_proto: udp
+    vpn_clients: ['client1']
+    center_host: "{{ groups['ca_servers'][0] }}"  # Первый сервер из группы CA
+
+  tasks:
+    # === 1. Базовая настройка ===
+    - name: "Обновление системы"
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: "Настройка UFW (разрешить основные порты)"
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - 22
+        - 80
+        - 443
+
+    - name: "Настройка UFW (разрешить VPN)"
+      ufw:
+        rule: allow
+        port: "{{ openvpn_port }}"
+        proto: "{{ openvpn_proto }}"
+
+    - name: "Включение UFW"
+      ufw:
+        state: enabled
+
+    # === 2. Настройка УЦ ===
+    - name: "Установка Easy-RSA"
+      apt:
+        name: easy-rsa
+        state: present
+      when: "'ca_servers' in group_names"
+
+    - name: "Копирование скрипта настройки PKI"
+      copy:
+        src: "files/setup_pki.sh"
+        dest: "/tmp/setup_pki.sh"
+        mode: 0755
+      when: "'ca_servers' in group_names"
+
+    - name: "Настройка PKI"
+      shell: "/tmp/setup_pki.sh"
+      environment:
+        ca_country: "{{ ca_country }}"
+        ca_state: "{{ ca_state }}"
+        ca_locality: "{{ ca_locality }}"
+        ca_organization: "{{ ca_organization }}"
+        ca_email: "{{ ca_email }}"
+        ca_ou: "{{ ca_ou }}"
+        ca_days: "{{ ca_days }}"
+        cert_days: "{{ cert_days }}"
+      when: "'ca_servers' in group_names"
+
+    - name: "Генерация tls-auth ключа"
+      command: "openvpn --genkey --secret /etc/pki/easy-rsa/ta.key"
+      args:
+        creates: "/etc/pki/easy-rsa/ta.key"
+      when: "'ca_servers' in group_names"
+
+    # === 3. Генерация сертификатов ===
+    - name: "Генерация сертификата VPN-сервера"
+      command: |
+        cd /etc/pki/easy-rsa
+        ./easyrsa build-server-full vpn-server nopass
+      args:
+        creates: "/etc/pki/easy-rsa/pki/issued/vpn-server.crt"
+      when: "'ca_servers' in group_names"
+
+    - name: "Генерация клиентских сертификатов"
+      command: |
+        cd /etc/pki/easy-rsa
+        ./easyrsa build-client-full {{ item }} nopass
+      loop: "{{ vpn_clients }}"
+      args:
+        creates: "/etc/pki/easy-rsa/pki/issued/{{ item }}.crt"
+      when: "'ca_servers' in group_names"
+
+    # === 4. Подготовка файлов для VPN-сервера ===
+    - name: "Скачивание файлов с CA сервера (delegate)"
+      delegate_to: "{{ center_host }}"
+      fetch:
+        src: "{{ item.src }}"
+        dest: "/tmp/vpn_files/{{ item.dest }}"
+        flat: yes
+      loop:
+        - { src: "/etc/pki/easy-rsa/pki/ca.crt", dest: "ca.crt" }
+        - { src: "/etc/pki/easy-rsa/pki/issued/vpn-server.crt", dest: "vpn-server.crt" }
+        - { src: "/etc/pki/easy-rsa/pki/private/vpn-server.key", dest: "vpn-server.key" }
+        - { src: "/etc/pki/easy-rsa/ta.key", dest: "ta.key" }
+      when: "'vpn_servers' in group_names"
+      run_once: yes
+
+    - name: "Копирование файлов на VPN сервер"
+      copy:
+        src: "/tmp/vpn_files/{{ item }}"
+        dest: "/etc/openvpn/server/{{ item }}"
+        mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
+      loop:
+        - "ca.crt"
+        - "vpn-server.crt"
+        - "vpn-server.key"
+        - "ta.key"
+      when: "'vpn_servers' in group_names"
+
+    # === 5. Настройка OpenVPN ===
+    - name: "Установка OpenVPN"
+      apt:
+        name: openvpn
+        state: present
+      when: "'vpn_servers' in group_names"
+
+    - name: "Настройка конфига сервера"
+      template:
+        src: "templates/server.conf.j2"
+        dest: "/etc/openvpn/server/server.conf"
+      when: "'vpn_servers' in group_names"
+      notify: restart openvpn
+
+    # === 6. Генерация клиентских конфигов ===
+    - name: "Копирование скрипта генерации клиентских конфигов"
+      copy:
+        src: "files/generate_client_ovpn.sh"
+        dest: "/usr/local/bin/generate_client_ovpn.sh"
+        mode: "0755"
+      when: "'ca_servers' in group_names"
+
+    - name: "Генерация клиентских конфигов"
+      shell: |
+        generate_client_ovpn.sh "{{ item }}" "{{ ansible_host }}"
+      loop: "{{ vpn_clients }}"
+      environment:
+        TA_KEY_PATH: "/etc/pki/easy-rsa/ta.key"
+      when: "'ca_servers' in group_names"
+
+    # === 7. Создание .deb пакета ===
+    - name: "Подготовка структуры пакета"
+      file:
+        path: "/tmp/mypki/{{ item }}"
+        state: directory
+      loop:
+        - "DEBIAN"
+        - "etc/pki"
+      when: "'ca_servers' in group_names"
+
+    - name: "Копирование файлов пакета"
+      copy:
+        src: "/etc/pki/easy-rsa/{{ item.src }}"
+        dest: "/tmp/mypki/etc/pki/{{ item.dest }}"
+        remote_src: yes
+        mode: "{{ item.mode | default('0644') }}"
+      loop:
+        - { src: "pki/ca.crt", dest: "ca.crt" }
+        - { src: "vars", dest: "vars" }
+        - { src: "ta.key", dest: "ta.key", mode: "0600" }
+      when: "'ca_servers' in group_names"
+
+    - name: "Сборка .deb пакета"
+      command: "dpkg-deb --build /tmp/mypki /tmp/mypki-config_1.0_all.deb"
+      args:
+        creates: "/tmp/mypki-config_1.0_all.deb"
+      when: "'ca_servers' in group_names"
+
+  handlers:
+    - name: "restart openvpn"
+      service:
+        name: openvpn-server@server
+        state: restarted
+      when: "'vpn_servers' in group_names"

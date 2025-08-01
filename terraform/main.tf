@@ -33,9 +33,8 @@ data "vkcs_images_image" "compute" {
     visibility = "public"
     default    = true
     properties = {
-        mcs_os_distro  = "redos"
-        mcs_os_version = "7.3"
-        mcs_name = "РЕД ОС 7.3 Стандарт"
+        mcs_os_distro  = "ubuntu"
+        mcs_os_version = "22.04"
     }
 }
 # etcd instances

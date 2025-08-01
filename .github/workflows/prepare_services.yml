@@ -1,0 +1,195 @@
+name: prepare_services.yml
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - 'terraform/**'
+      - 'ansible/**'
+      - '.github/**'
+
+env:
+  TF_DIR: './terraform'
+  ANSIBLE_DIR: './ansible'
+  INVENTORY_FILE: './ansible/inventory.yml'
+
+
+jobs:
+  terraform-deploy:
+    runs-on: zix
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TF_DIR }}
+
+      - name: Terraform Plan
+        run: terraform plan -input=false
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_username: ${{ secrets.USERNAME }}
+          TF_VAR_password: ${{ secrets.PASSWORD }}
+          TF_VAR_project_id: ${{ secrets.PROJECT_ID }}
+          TF_VAR_vpn_instance_count: 1
+          TF_VAR_vpn_instance_name: 'terraform-vpn'
+          TF_VAR_center_instance_count: 1
+          TF_VAR_center_instance_name: 'terraform-center'
+          TF_VAR_compute_flavor: ${{ vars.FLAVOR }}
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_username: ${{ secrets.USERNAME }}
+          TF_VAR_password: ${{ secrets.PASSWORD }}
+          TF_VAR_project_id: ${{ secrets.PROJECT_ID }}
+          TF_VAR_vpn_instance_count: 1
+          TF_VAR_vpn_instance_name: 'terraform-vpn'
+          TF_VAR_center_instance_count: 1
+          TF_VAR_center_instance_name: 'terraform-center'
+          TF_VAR_compute_flavor: ${{ vars.FLAVOR }}
+
+      - name: Extract IPs
+        run: |
+          cd ${{ env.TF_DIR }}
+
+          # Получаем вывод Terraform
+          terraform output > raw.txt
+          echo "Raw output for debug:"
+          cat raw.txt
+
+          # Извлекаем IP-адреса VPN ВМ с сохранением порядка
+          grep -A 3 '"terraform-vpn-' raw.txt | awk '
+            /public_ip/ {pub=$3}
+            /private_ip/ {priv=$3}
+            /}/ {if (pub && priv) {print pub; print priv; pub=""; priv=""}}
+          ' | tr -d '"' > vpn_ips_combined.txt
+
+          # Разделяем на публичные и приватные (каждая 1-я строка - публичный, 2-я - приватный)
+          sed -n '1~2p' vpn_ips_combined.txt > vpn_public_ips.txt
+          sed -n '2~2p' vpn_ips_combined.txt > vpn_private_ips.txt
+
+          # Извлекаем IP-адреса удостовряющего центра с сохранением порядка
+          grep -A 3 '"terraform-center-' raw.txt | awk '
+            /public_ip/ {pub=$3}
+            /private_ip/ {priv=$3}
+            /}/ {if (pub && priv) {print pub; print priv; pub=""; priv=""}}
+          ' | tr -d '"' > center_ips_combined.txt
+
+          # Разделяем на публичные и приватные
+          sed -n '1~2p' center_ips_combined.txt > center_public_ips.txt
+          sed -n '2~2p' center_ips_combined.txt > center_private_ips.txt
+
+          # Проверяем результат
+          echo "VPN Public IPs:"
+          cat vpn_public_ips.txt
+          echo "VPN Private IPs:"
+          cat vpn_private_ips.txt
+          echo "Center Public IPs:"
+          cat center_public_ips.txt
+          echo "Center Private IPs:"
+          cat center_private_ips.txt
+
+          # Проверяем что файлы не пустые и количество совпадает
+          if [ ! -s vpn_public_ips.txt ] || [ ! -s vpn_private_ips.txt ] || \
+             [ ! -s center_public_ips.txt ] || [ ! -s center_private_ips.txt ] || \
+             [ $(wc -l < vpn_public_ips.txt) -ne $(wc -l < vpn_private_ips.txt) ] || \
+             [ $(wc -l < center_public_ips.txt) -ne $(wc -l < center_private_ips.txt) ]; then
+            echo "Error: Failed to extract IP addresses or counts don't match!"
+            exit 1
+          fi
+
+          # Сохраняем пути
+          echo "VPN_PUBLIC_IPS_FILE=vpn_public_ips.txt" >> $GITHUB_ENV
+          echo "VPN_PRIVATE_IPS_FILE=vpn_private_ips.txt" >> $GITHUB_ENV
+          echo "CENTER_PUBLIC_IPS_FILE=center_public_ips.txt" >> $GITHUB_ENV
+          echo "CENTER_PRIVATE_IPS_FILE=center_private_ips.txt" >> $GITHUB_ENV
+
+      - name: Upload IP files
+        uses: actions/upload-artifact@v4
+        with:
+          name: ip-files
+          path: |
+            ${{ env.TF_DIR }}/vpn_public_ips.txt
+            ${{ env.TF_DIR }}/vpn_private_ips.txt
+            ${{ env.TF_DIR }}/center_public_ips.txt
+            ${{ env.TF_DIR }}/center_private_ips.txt
+
+  configure-ssh-access:
+    runs-on: zix
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Prepare known hosts
+        run: |
+          > ~/.ssh/known_hosts
+          # Добавляем хосты в known_hosts
+          for ip_file in ip-files/vpn_public_ips.txt ip-files/tdb_public_ips.txt; do
+            while read ip; do
+              ip=$(echo "$ip" | tr -d '\r\n')
+              if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "Adding $ip to known_hosts"
+                ssh-keyscan -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null || true
+              fi
+            done < "$ip_file"
+          done
+          for ip_file in ip-files/center_public_ips.txt ip-files/center_public_ips.txt; do
+            while read ip; do
+              ip=$(echo "$ip" | tr -d '\r\n')
+              if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "Adding $ip to known_hosts"
+                ssh-keyscan -H "$ip" >> ~/.ssh/known_hosts 2>/dev/null || true
+              fi
+            done < "$ip_file"
+          done
+          
+          # Тестовое подключение
+          first_ip_vpn=$(head -1 ip-files/vpn_public_ips.txt)
+          echo "=== Testing connection to $first_ip_vpn ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$first_ip_vpn echo "SSH test successful" || {
+            echo "::error::SSH connection failed"
+            exit 1
+          }
+          first_ip_center=$(head -1 ip-files/center_public_ips.txt)
+          echo "=== Testing connection to $first_ip_center ==="
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@$first_ip_center echo "SSH test successful" || {
+            echo "::error::SSH connection failed"
+            exit 1
+          }
+          
+           
+
+  prepare-vpn:
+    runs-on: zix
+    environment: production
+    steps:
+      - name: Prepare CA
+        run: |
+          export super_user=ubuntu
+          export center_host=$(head -n 1 ip-files/center_public_ips.txt)
+          export vpn_host=$(head -n 1 ip-files/vpn_public_ips.txt)
+          ansible-playbook -i ${{ env.INVENTORY_FILE }} \
+                        --extra-vars  '{
+                            "center_host":"'${center_host}'",
+                            "tdb_2_public":"'${tdb_2_public}'",
+                            "super_user":"'${super_user}'",
+                         }' \
+                         ${{ env.ANSIBLE_DIR }}/deploy_pki.yml --limit ca_servers
+
+      - name: Prepare VPN Server
+        run: |
+          export super_user=ubuntu
+          export center_host=$(head -n 1 ip-files/center_public_ips.txt)
+          export vpn_host=$(head -n 1 ip-files/vpn_public_ips.txt)
+          ansible-playbook -i ${{ env.INVENTORY_FILE }} \
+                        --extra-vars  '{
+                            "center_host":"'${center_host}'",
+                            "tdb_2_public":"'${tdb_2_public}'",
+                            "super_user":"'${super_user}'",
+                         }' \
+                         ${{ env.ANSIBLE_DIR }}/deploy_pki.yml --limit vpn_servers

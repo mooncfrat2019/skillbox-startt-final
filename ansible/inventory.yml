@@ -1,0 +1,31 @@
+all:
+  children:
+    ca_servers:
+      hosts:
+        ca1:
+          ansible_host: '{{ center_host }}'
+          ansible_user: '{{ super_user }}'
+          ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    vpn_servers:
+      hosts:
+        vpn1:
+          ansible_host: '{{ vpn_host }}'
+          ansible_user: '{{ super_user }}'
+          ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    vars:
+      ansible_ssh_private_key_file: ~/.ssh/id_rsa
+      ansible_become: true
+      ansible_become_method: sudo
+      ansible_python_interpreter: /usr/bin/python3
+      ca_country: RU
+      ca_state: Moscow
+      ca_locality: Moscow
+      ca_organization: "NEXUS VPN LLC"
+      ca_common_name: "NEXUS VPN CA"
+      ca_days: 3650                  # Срок действия CA (10 лет)
+      cert_days: 365                 # Срок действия сертификатов (1 год)
+      vpn_servers:
+        - '{{ center_host }}'
+      vpn_clients:
+        - client1
+        - client2

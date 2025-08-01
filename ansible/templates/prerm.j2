@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|purge|upgrade)
+        echo "Остановка зависимых сервисов (если нужно)..."
+        # systemctl stop mypki-service || true
+        ;;
+    *)
+        echo "Usage: $0 {remove|purge|upgrade}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

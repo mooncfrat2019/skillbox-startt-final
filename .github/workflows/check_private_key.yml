@@ -10,5 +10,4 @@ jobs:
       - name: check access
         run: |
           whoami
-          cat ~/.ssh/id_rsa
 
