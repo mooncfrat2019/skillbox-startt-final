@@ -92,17 +92,21 @@
 
     # === 3. Генерация сертификатов ===
     - name: "Генерация сертификата VPN-сервера"
-      command: |
-        cd /etc/pki/easy-rsa
+      shell: |
+        set -e
+        cd /etc/pki/easy-rsa || { echo "Directory not found"; exit 1; }
+        [ -f easyrsa ] || { echo "easyrsa not found"; exit 1; }
         ./easyrsa build-server-full vpn-server nopass
       args:
         creates: "/etc/pki/easy-rsa/pki/issued/vpn-server.crt"
       when: "'ca_servers' in group_names"
 
     - name: "Генерация клиентских сертификатов"
-      command: |
-        cd /etc/pki/easy-rsa
-        ./easyrsa build-client-full {{ item }} nopass
+      shell: |
+        set -e
+        cd /etc/pki/easy-rsa || { echo "Ошибка: директория /etc/pki/easy-rsa не найдена"; exit 1; }
+        [ -f easyrsa ] || { echo "Ошибка: файл easyrsa не найден"; exit 1; }
+        ./easyrsa build-client-full {{ item }} nopass || { echo "Ошибка генерации сертификата"; exit 1; }
       loop: "{{ vpn_clients }}"
       args:
         creates: "/etc/pki/easy-rsa/pki/issued/{{ item }}.crt"
