@@ -29,7 +29,7 @@
     - name: "Обновление системы"
       apt:
         update_cache: yes
-        upgrade: dist
+        # upgrade: dist
 
     - name: "Настройка UFW (разрешить основные порты)"
       ufw:
@@ -203,7 +203,7 @@
             table: nat
             chain: POSTROUTING
             source: 10.8.0.0/24
-            out_interface: "{{ ansible_default_ipv4.interface }}"
+            out_interface: ens3
             jump: MASQUERADE
             action: append
           when: "'vpn_servers' in group_names"
