@@ -52,6 +52,12 @@
         state: enabled
 
     # === 2. Настройка УЦ ===
+    - name: "Установка OpenVPN (для генерации ключей)"
+      apt:
+        name: openvpn
+        state: present
+      when: "'ca_servers' in group_names"
+
     - name: "Установка Easy-RSA"
       apt:
         name: easy-rsa
