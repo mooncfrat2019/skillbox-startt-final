@@ -124,6 +124,7 @@
     - name: "Создание временной директории на контроллере"
       delegate_to: localhost
       run_once: true
+      become: false
       file:
         path: "/tmp/tmp_pki/{{ center_host }}"
         state: directory
