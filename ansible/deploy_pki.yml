@@ -216,7 +216,8 @@
           when: "'ca_servers' in group_names"
 
         - name: "Проверка структуры пакета"
-          command: "tree /tmp/mypki"
+          shell: |
+            tree /tmp/mypki
           register: pkg_structure
           changed_when: false
           when: "'ca_servers' in group_names"
