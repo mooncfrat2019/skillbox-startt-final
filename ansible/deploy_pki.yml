@@ -7,14 +7,14 @@
     ansible_become_method: sudo
     ansible_python_interpreter: /usr/bin/python3
     # Переменные для Easy-RSA
-    ca_country: "{{ ca_country | default('RU') }}"
-    ca_state: "{{ ca_state | default('Moscow') }}"
-    ca_locality: "{{ ca_locality | default('Moscow') }}"
-    ca_organization: "{{ ca_organization | default('NEXUS VPN') }}"
-    ca_email: "{{ ca_email | default('zix@vk.com') }}"
-    ca_ou: "{{ ca_ou | default('IT') }}"
-    ca_days: "{{ ca_days | default(3650) }}"
-    cert_days: "{{ cert_days | default(365) }}"
+    ca_country: "{{ ca_country }}"
+    ca_state: "{{ ca_state }}"
+    ca_locality: "{{ ca_locality }}"
+    ca_organization: "{{ ca_organization }}"
+    ca_email: "{{ ca_email }}"
+    ca_ou: "{{ ca_ou }}"
+    ca_days: "{{ ca_days }}"
+    cert_days: "{{ cert_days }}"
 
     # Для VPN
     openvpn_port: 1194
