@@ -129,18 +129,32 @@
         state: directory
         mode: '0755'
 
-    - name: "Скачивание файлов с CA сервера на контроллер"
-      fetch:
-        src: "/etc/pki/easy-rsa/{{ item.src }}"
-        dest: "/tmp/tmp_pki/{{ center_host }}/{{ item.dest }}"
-        flat: yes
+    - name: "Загрузка защищённых файлов с CA сервера (через slurp)"
+      slurp:
+        src: "/etc/pki/easy-rsa/{{ item }}"
       loop:
-        - { src: "pki/ca.crt", dest: "ca.crt" }
-        - { src: "pki/issued/vpn-server.crt", dest: "vpn-server.crt" }
-        - { src: "pki/private/vpn-server.key", dest: "vpn-server.key" }
-        - { src: "ta.key", dest: "ta.key" }
+        - pki/ca.crt
+        - pki/issued/vpn-server.crt
+        - pki/private/vpn-server.key
+        - ta.key
       when: "'ca_servers' in group_names"
+      register: slurped_files
+      become: true
       delegate_to: "{{ center_host }}"
+
+    - name: "Сохранение файлов slurp на контроллере"
+      copy:
+        content: "{{ item.content | b64decode }}"
+        dest: "/tmp/tmp_pki/{{ center_host }}/{{ item.dest }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { content: "{{ slurped_files.results[0].content }}", dest: "ca.crt", mode: "0644" }
+        - { content: "{{ slurped_files.results[1].content }}", dest: "vpn-server.crt", mode: "0644" }
+        - { content: "{{ slurped_files.results[2].content }}", dest: "vpn-server.key", mode: "0600" }
+        - { content: "{{ slurped_files.results[3].content }}", dest: "ta.key", mode: "0600" }
+      delegate_to: localhost
+      run_once: true
+      when: "'ca_servers' in group_names"
 
     - name: "Создание директории на VPN сервере для OpenVPN файлов"
       file:
