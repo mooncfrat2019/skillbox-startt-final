@@ -168,7 +168,7 @@
     - name: "Копирование файлов с контроллера на VPN сервер"
       copy:
         src: "/home/ubuntu/tmp_pki/{{ center_host }}/{{ item }}"
-        dest: "/etc/openvpn/{{ item }}"
+        dest: "/etc/openvpn/server/{{ item }}"
         mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
       loop:
         - ca.crt
@@ -179,7 +179,7 @@
 
     - name: "Настройка прав доступа"
       file:
-        path: "/etc/openvpn/{{ item }}"
+        path: "/etc/openvpn/server/{{ item }}"
         owner: nobody
         group: nogroup
         mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
