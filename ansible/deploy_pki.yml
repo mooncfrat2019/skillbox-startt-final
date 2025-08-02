@@ -126,9 +126,9 @@
       run_once: true
       become: false
       file:
-        path: "/tmp/tmp_pki/{{ center_host }}"
+        path: "/home/ubuntu/tmp_pki/{{ center_host }}"
         state: directory
-        mode: '0755'
+        mode: '0777'
 
     - name: "Загрузка защищённых файлов с CA сервера (через slurp)"
       slurp:
@@ -146,7 +146,7 @@
     - name: "Сохранение файлов slurp на контроллере"
       copy:
         content: "{{ item.content | b64decode }}"
-        dest: "/tmp/tmp_pki/{{ center_host }}/{{ item.dest }}"
+        dest: "/home/ubuntu/tmp_pki/{{ center_host }}/{{ item.dest }}"
         mode: "{{ item.mode }}"
       loop:
         - { content: "{{ slurped_files.results[0].content }}", dest: "ca.crt", mode: "0644" }
@@ -167,7 +167,7 @@
 
     - name: "Копирование файлов с контроллера на VPN сервер"
       copy:
-        src: "/tmp/tmp_pki/{{ center_host }}/{{ item }}"
+        src: "/home/ubuntu/tmp_pki/{{ center_host }}/{{ item }}"
         dest: "/etc/openvpn/{{ item }}"
         mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
       loop:
