@@ -192,6 +192,10 @@ jobs:
           name: ip-files
           path: ip-files
 
+      - name: Ansible Ping
+        run: |
+          ansible all -i ${{ env.INVENTORY_FILE }} -m ping -vvv
+
       - name: Prepare CA
         run: |
           export super_user=ubuntu
