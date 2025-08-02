@@ -121,18 +121,18 @@
 
     # === 4. Подготовка файлов для VPN-сервера ===
 
-    - name: "Создание временной директории на контроллере для файлов CA"
+    - name: "Создание временной директории на контроллере"
       delegate_to: localhost
       run_once: true
       file:
-        path: "files/tmp_pki/{{ center_host }}"
+        path: "/tmp/tmp_pki/{{ center_host }}"
         state: directory
         mode: '0755'
 
     - name: "Скачивание файлов с CA сервера на контроллер"
       fetch:
         src: "/etc/pki/easy-rsa/{{ item.src }}"
-        dest: "files/tmp_pki/{{ center_host }}/{{ item.dest }}"
+        dest: "/tmp/tmp_pki/{{ center_host }}/{{ item.dest }}"
         flat: yes
       loop:
         - { src: "pki/ca.crt", dest: "ca.crt" }
@@ -151,7 +151,7 @@
 
     - name: "Копирование файлов с контроллера на VPN сервер"
       copy:
-        src: "files/tmp_pki/{{ center_host }}/{{ item }}"
+        src: "/tmp/tmp_pki/{{ center_host }}/{{ item }}"
         dest: "/etc/openvpn/{{ item }}"
         mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
       loop:
