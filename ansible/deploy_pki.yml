@@ -119,20 +119,46 @@
         state: present
       when: "'vpn_servers' in group_names"
 
-    - name: "Копирование файлов с CA сервера на VPN сервер"
-      hosts: "{{ vpn_host }}"
-      tasks:
-        - name: "Синхронизация файлов"
-          synchronize:
-            src: "/etc/pki/easy-rsa/{{ item.src }}"
-            dest: "/etc/openvpn/{{ item.dest }}"
-            mode: push
-          loop:
-            - { src: "pki/ca.crt", dest: "ca.crt" }
-            - { src: "pki/issued/vpn-server.crt", dest: "vpn-server.crt" }
-            - { src: "pki/private/vpn-server.key", dest: "vpn-server.key" }
-            - { src: "ta.key", dest: "ta.key" }
-          delegate_to: "{{ center_host }}"
+    # === 4. Подготовка файлов для VPN-сервера ===
+
+    - name: "Создание временной директории на контроллере для файлов CA"
+      delegate_to: localhost
+      run_once: true
+      file:
+        path: "files/tmp_pki/{{ center_host }}"
+        state: directory
+        mode: '0755'
+
+    - name: "Скачивание файлов с CA сервера на контроллер"
+      fetch:
+        src: "/etc/pki/easy-rsa/{{ item.src }}"
+        dest: "files/tmp_pki/{{ center_host }}/{{ item.dest }}"
+        flat: yes
+      loop:
+        - { src: "pki/ca.crt", dest: "ca.crt" }
+        - { src: "pki/issued/vpn-server.crt", dest: "vpn-server.crt" }
+        - { src: "pki/private/vpn-server.key", dest: "vpn-server.key" }
+        - { src: "ta.key", dest: "ta.key" }
+      when: "'ca_servers' in group_names"
+      delegate_to: "{{ center_host }}"
+
+    - name: "Создание директории на VPN сервере для OpenVPN файлов"
+      file:
+        path: /etc/openvpn
+        state: directory
+        mode: '0755'
+      when: "'vpn_servers' in group_names"
+
+    - name: "Копирование файлов с контроллера на VPN сервер"
+      copy:
+        src: "files/tmp_pki/{{ center_host }}/{{ item }}"
+        dest: "/etc/openvpn/{{ item }}"
+        mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
+      loop:
+        - ca.crt
+        - vpn-server.crt
+        - vpn-server.key
+        - ta.key
       when: "'vpn_servers' in group_names"
 
     - name: "Настройка прав доступа"
