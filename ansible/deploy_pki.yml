@@ -133,7 +133,7 @@
             - { src: "pki/private/vpn-server.key", dest: "vpn-server.key" }
             - { src: "ta.key", dest: "ta.key" }
           delegate_to: "{{ center_host }}"
-          when: "'vpn_servers' in group_names"
+      when: "'vpn_servers' in group_names"
 
     - name: "Настройка прав доступа"
       file:
