@@ -113,6 +113,12 @@
       when: "'ca_servers' in group_names"
 
     # === 4. Подготовка файлов для VPN-сервера ===
+    - name: "Установка OpenVPN"
+      apt:
+        name: openvpn
+        state: present
+      when: "'vpn_servers' in group_names"
+
     - name: "Копирование файлов с CA сервера на VPN сервер"
       delegate_to: "{{ center_host }}"  # Указываем, что команда выполняется на CA сервере
       copy:
@@ -172,11 +178,6 @@
       when: "'vpn_servers' in group_names"
 
     # === 5. Настройка OpenVPN ===
-    - name: "Установка OpenVPN"
-      apt:
-        name: openvpn
-        state: present
-      when: "'vpn_servers' in group_names"
 
     - name: "Настройка конфига сервера"
       template:
