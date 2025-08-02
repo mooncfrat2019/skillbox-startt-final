@@ -113,31 +113,18 @@
       when: "'ca_servers' in group_names"
 
     # === 4. Подготовка файлов для VPN-сервера ===
-    - name: "Скачивание файлов с CA сервера (delegate)"
-      delegate_to: "{{ center_host }}"
-      fetch:
-        src: "{{ item.src }}"
-        dest: "/tmp/vpn_files/{{ item.dest }}"
-        flat: yes
-      loop:
-        - { src: "/etc/pki/easy-rsa/pki/ca.crt", dest: "ca.crt" }
-        - { src: "/etc/pki/easy-rsa/pki/issued/vpn-server.crt", dest: "vpn-server.crt" }
-        - { src: "/etc/pki/easy-rsa/pki/private/vpn-server.key", dest: "vpn-server.key" }
-        - { src: "/etc/pki/easy-rsa/ta.key", dest: "ta.key" }
-      when: "'vpn_servers' in group_names"
-      run_once: yes
-
-    - name: "Копирование файлов OpenVPN"
+    - name: "Копирование файлов с CA сервера на VPN сервер"
+      delegate_to: "{{ center_host }}"  # Указываем, что команда выполняется на CA сервере
       copy:
-        src: "/tmp/vpn_files/{{ item }}"
-        dest: "/etc/openvpn/{{ item }}"
-        mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
-        remote_src: yes
+        src: "/etc/pki/easy-rsa/{{ item.src }}"
+        dest: "/etc/openvpn/{{ item.dest }}"
+        remote_src: yes  # Копирование между удалёнными серверами
+        mode: "{{ '0600' if item.dest.endswith('.key') else '0644' }}"
       loop:
-        - "ca.crt"
-        - "vpn-server.crt"
-        - "vpn-server.key"
-        - "ta.key"
+        - { src: "pki/ca.crt", dest: "ca.crt" }
+        - { src: "pki/issued/vpn-server.crt", dest: "vpn-server.crt" }
+        - { src: "pki/private/vpn-server.key", dest: "vpn-server.key" }
+        - { src: "ta.key", dest: "ta.key" }
       when: "'vpn_servers' in group_names"
 
     - name: "Настройка прав доступа"
@@ -151,6 +138,37 @@
         - "vpn-server.crt"
         - "vpn-server.key"
         - "ta.key"
+      when: "'vpn_servers' in group_names"
+
+    - name: "Настройка iptables на VPN сервере"
+      block:
+        - name: "Установка iptables-persistent"
+          apt:
+            name: iptables-persistent
+            state: present
+          when: "'vpn_servers' in group_names"
+
+        - name: "Добавление правила NAT"
+          iptables:
+            table: nat
+            chain: POSTROUTING
+            source: 10.8.0.0/24
+            out_interface: "{{ ansible_default_ipv4.interface }}"
+            jump: MASQUERADE
+            action: append
+          when: "'vpn_servers' in group_names"
+
+        - name: "Включение IP forwarding"
+          sysctl:
+            name: net.ipv4.ip_forward
+            value: 1
+            state: present
+            reload: yes
+          when: "'vpn_servers' in group_names"
+
+        - name: "Сохранение правил iptables"
+          command: "netfilter-persistent save"
+          when: "'vpn_servers' in group_names"
       when: "'vpn_servers' in group_names"
 
     # === 5. Настройка OpenVPN ===
