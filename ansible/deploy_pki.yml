@@ -120,18 +120,20 @@
       when: "'vpn_servers' in group_names"
 
     - name: "Копирование файлов с CA сервера на VPN сервер"
-      delegate_to: "{{ center_host }}"  # Указываем, что команда выполняется на CA сервере
-      copy:
-        src: "/etc/pki/easy-rsa/{{ item.src }}"
-        dest: "/etc/openvpn/{{ item.dest }}"
-        remote_src: yes  # Копирование между удалёнными серверами
-        mode: "{{ '0600' if item.dest.endswith('.key') else '0644' }}"
-      loop:
-        - { src: "pki/ca.crt", dest: "ca.crt" }
-        - { src: "pki/issued/vpn-server.crt", dest: "vpn-server.crt" }
-        - { src: "pki/private/vpn-server.key", dest: "vpn-server.key" }
-        - { src: "ta.key", dest: "ta.key" }
-      when: "'vpn_servers' in group_names"
+      hosts: "{{ vpn_host }}"
+      tasks:
+        - name: "Синхронизация файлов"
+          synchronize:
+            src: "/etc/pki/easy-rsa/{{ item.src }}"
+            dest: "/etc/openvpn/{{ item.dest }}"
+            mode: push
+          loop:
+            - { src: "pki/ca.crt", dest: "ca.crt" }
+            - { src: "pki/issued/vpn-server.crt", dest: "vpn-server.crt" }
+            - { src: "pki/private/vpn-server.key", dest: "vpn-server.key" }
+            - { src: "ta.key", dest: "ta.key" }
+          delegate_to: "{{ center_host }}"
+          when: "'vpn_servers' in group_names"
 
     - name: "Настройка прав доступа"
       file:
