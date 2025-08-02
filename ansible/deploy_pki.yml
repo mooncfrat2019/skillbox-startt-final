@@ -127,10 +127,24 @@
       when: "'vpn_servers' in group_names"
       run_once: yes
 
-    - name: "Копирование файлов на VPN сервер"
+    - name: "Копирование файлов OpenVPN"
       copy:
         src: "/tmp/vpn_files/{{ item }}"
-        dest: "/etc/openvpn/server/{{ item }}"
+        dest: "/etc/openvpn/{{ item }}"
+        mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
+        remote_src: yes
+      loop:
+        - "ca.crt"
+        - "vpn-server.crt"
+        - "vpn-server.key"
+        - "ta.key"
+      when: "'vpn_servers' in group_names"
+
+    - name: "Настройка прав доступа"
+      file:
+        path: "/etc/openvpn/{{ item }}"
+        owner: nobody
+        group: nogroup
         mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
       loop:
         - "ca.crt"
