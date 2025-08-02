@@ -154,6 +154,7 @@
         - { content: "{{ slurped_files.results[3].content }}", dest: "ta.key", mode: "0600" }
       delegate_to: localhost
       run_once: true
+      become: false
       when: "'ca_servers' in group_names"
 
     - name: "Создание директории на VPN сервере для OpenVPN файлов"
