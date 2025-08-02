@@ -170,32 +170,77 @@
       when: "'ca_servers' in group_names"
 
     # === 7. Создание .deb пакета ===
-    - name: "Подготовка структуры пакета"
-      file:
-        path: "/tmp/mypki/{{ item }}"
-        state: directory
-      loop:
-        - "DEBIAN"
-        - "etc/pki"
-      when: "'ca_servers' in group_names"
+    - name: "Подготовка структуры .deb пакета"
+      block:
+        - name: "Создание директорий пакета"
+          file:
+            path: "/tmp/mypki/{{ item }}"
+            state: directory
+            mode: 0755
+          loop:
+            - "DEBIAN"
+            - "etc/pki"
+          when: "'ca_servers' in group_names"
 
-    - name: "Копирование файлов пакета"
-      copy:
-        src: "/etc/pki/easy-rsa/{{ item.src }}"
-        dest: "/tmp/mypki/etc/pki/{{ item.dest }}"
-        remote_src: yes
-        mode: "{{ item.mode | default('0644') }}"
-      loop:
-        - { src: "pki/ca.crt", dest: "ca.crt" }
-        - { src: "vars", dest: "vars" }
-        - { src: "ta.key", dest: "ta.key", mode: "0600" }
-      when: "'ca_servers' in group_names"
+        - name: "Копирование control-файла из шаблона"
+          template:
+            src: "templates/control.j2"
+            dest: "/tmp/mypki/DEBIAN/control"
+            mode: 0644
+          when: "'ca_servers' in group_names"
 
-    - name: "Сборка .deb пакета"
-      command: "dpkg-deb --build /tmp/mypki /tmp/mypki-config_1.0_all.deb"
-      args:
-        creates: "/tmp/mypki-config_1.0_all.deb"
-      when: "'ca_servers' in group_names"
+        - name: "Копирование postrm скрипта"
+          template:
+            src: "templates/postrm.j2"
+            dest: "/tmp/mypki/DEBIAN/postrm"
+            mode: 0755
+          when: "'ca_servers' in group_names"
+
+        - name: "Копирование prerm скрипта"
+          template:
+            src: "templates/prerm.j2"
+            dest: "/tmp/mypki/DEBIAN/prerm"
+            mode: 0755
+          when: "'ca_servers' in group_names"
+
+        - name: "Копирование файлов PKI в пакет"
+          copy:
+            src: "/etc/pki/easy-rsa/{{ item.src }}"
+            dest: "/tmp/mypki/etc/pki/{{ item.dest }}"
+            remote_src: yes
+            mode: "{{ item.mode | default('0644') }}"
+          loop:
+            - { src: "pki/ca.crt", dest: "ca.crt" }
+            - { src: "vars", dest: "vars" }
+            - { src: "ta.key", dest: "ta.key", mode: "0600" }
+          when: "'ca_servers' in group_names"
+
+        - name: "Проверка структуры пакета"
+          command: "tree /tmp/mypki"
+          register: pkg_structure
+          changed_when: false
+          when: "'ca_servers' in group_names"
+
+        - debug:
+            var: pkg_structure.stdout
+          when: "'ca_servers' in group_names"
+
+        - name: "Сборка .deb пакета"
+          command: "dpkg-deb --build /tmp/mypki /tmp/mypki-config_1.0_all.deb"
+          args:
+            chdir: "/tmp"
+            creates: "/tmp/mypki-config_1.0_all.deb"
+          when: "'ca_servers' in group_names"
+
+        - name: "Проверка собранного пакета"
+          command: "dpkg-deb -c /tmp/mypki-config_1.0_all.deb"
+          register: deb_contents
+          changed_when: false
+          when: "'ca_servers' in group_names"
+
+        - debug:
+            var: deb_contents.stdout
+          when: "'ca_servers' in group_names"
 
   handlers:
     - name: "restart openvpn"
