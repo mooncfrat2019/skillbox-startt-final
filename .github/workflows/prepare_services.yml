@@ -197,12 +197,12 @@ jobs:
           export super_user=ubuntu
           export center_host=$(head -n 1 ip-files/center_public_ips.txt)
           export vpn_host=$(head -n 1 ip-files/vpn_public_ips.txt)
-          ansible all -m ping -i ${{ env.INVENTORY_FILE }} \
+          ansible all -vvv -m ping -i ${{ env.INVENTORY_FILE }} \
                         --extra-vars  '{
                             "center_host":"'${center_host}'",
                             "vpn_host":"'${vpn_host}'",
                             "super_user":"'${super_user}'",
-                         }' \ -vvv
+                         }' 
 
       - name: Prepare CA
         run: |
