@@ -172,6 +172,12 @@
     # === 7. Создание .deb пакета ===
     - name: "Подготовка структуры .deb пакета"
       block:
+        - name: "Установка tree (для отладки)"
+          apt:
+            name: tree
+            state: present
+          when: "'ca_servers' in group_names"
+
         - name: "Создание директорий пакета"
           file:
             path: "/tmp/mypki/{{ item }}"
