@@ -220,6 +220,45 @@
           command: "netfilter-persistent save"
           when: "'vpn_servers' in group_names"
       when: "'vpn_servers' in group_names"
+    
+    - name: "Настройка UFW для VPN"
+      block:
+        - name: "Разрешение OpenVPN порта"
+          ufw:
+            rule: allow
+            port: "{{ openvpn_port }}"
+            proto: "{{ openvpn_proto }}"
+        
+        - name: "Добавление NAT правил в before.rules"
+          lineinfile:
+            path: /etc/ufw/before.rules
+            insertbefore: "^\\*filter"
+            line: |
+              *nat
+              :POSTROUTING ACCEPT [0:0]
+              -A POSTROUTING -s 10.8.0.0/24 -o ens3 -j MASQUERADE
+              COMMIT
+            state: present
+        
+        - name: "Разрешение форвардинга через UFW"
+          ufw:
+            route: yes
+            direction: routed
+            interface: tun0
+            policy: allow
+        
+        - name: "Изменение политики форвардинга"
+          lineinfile:
+            path: /etc/default/ufw
+            regexp: '^DEFAULT_FORWARD_POLICY='
+            line: 'DEFAULT_FORWARD_POLICY="ACCEPT"'
+            backrefs: yes
+        
+        - name: "Применение изменений UFW"
+          service:
+            name: ufw
+            state: restarted
+      when: "'vpn_servers' in group_names"
 
     # === 5. Настройка OpenVPN ===
 
@@ -228,15 +267,15 @@
         src: "templates/server.conf.j2"
         dest: "/etc/openvpn/server.conf"
       when: "'vpn_servers' in group_names"
-      notify: restart openvpn
 
     - name: "Настройка прав доступа конфигурационного файла"
       file:
         path: "/etc/openvpn/server.conf"
-        owner: nobody
-        group: nogroup
+        owner: root
+        group: root
         mode: "644"
       when: "'vpn_servers' in group_names"
+      notify: restart openvpn
 
     # === 6. Генерация клиентских конфигов ===
     - name: "Копирование скрипта генерации клиентских конфигов"
@@ -337,6 +376,6 @@
   handlers:
     - name: "restart openvpn"
       service:
-        name: openvpn-server@server
+        name: openvpn@server
         state: restarted
       when: "'vpn_servers' in group_names"
