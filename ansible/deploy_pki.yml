@@ -230,6 +230,14 @@
       when: "'vpn_servers' in group_names"
       notify: restart openvpn
 
+    - name: "Настройка прав доступа конфигурационного файла"
+      file:
+        path: "/etc/openvpn/server.conf"
+        owner: nobody
+        group: nogroup
+        mode: "644"
+      when: "'vpn_servers' in group_names"
+
     # === 6. Генерация клиентских конфигов ===
     - name: "Копирование скрипта генерации клиентских конфигов"
       copy:
