@@ -168,7 +168,7 @@
     - name: "Копирование файлов с контроллера на VPN сервер"
       copy:
         src: "/home/ubuntu/tmp_pki/{{ center_host }}/{{ item }}"
-        dest: "/etc/openvpn/server/{{ item }}"
+        dest: "/etc/openvpn/{{ item }}"
         mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
       loop:
         - ca.crt
@@ -179,7 +179,7 @@
 
     - name: "Настройка прав доступа"
       file:
-        path: "/etc/openvpn/server/{{ item }}"
+        path: "/etc/openvpn/{{ item }}"
         owner: nobody
         group: nogroup
         mode: "{{ '0600' if item.endswith('.key') else '0644' }}"
@@ -226,7 +226,7 @@
     - name: "Настройка конфига сервера"
       template:
         src: "templates/server.conf.j2"
-        dest: "/etc/openvpn/server/server.conf"
+        dest: "/etc/openvpn/server.conf"
       when: "'vpn_servers' in group_names"
       notify: restart openvpn
 
@@ -240,7 +240,7 @@
 
     - name: "Генерация клиентских конфигов"
       shell: |
-        generate_client_ovpn.sh "{{ item }}" "{{ ansible_host }}"
+        generate_client_ovpn.sh "{{ item }}" "{{ vpn_host }}"
       loop: "{{ vpn_clients }}"
       environment:
         TA_KEY_PATH: "/etc/pki/easy-rsa/ta.key"
