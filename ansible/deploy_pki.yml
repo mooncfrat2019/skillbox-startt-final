@@ -279,7 +279,7 @@
     
     - name: "Включение и запуск сервиса OpenVPN"
       systemd:
-        name: openvpn
+        name: openvpn@server
         enabled: yes
         state: started
         daemon_reload: yes
