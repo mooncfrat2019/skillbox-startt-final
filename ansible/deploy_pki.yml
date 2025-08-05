@@ -276,6 +276,14 @@
         mode: "644"
       when: "'vpn_servers' in group_names"
       notify: restart openvpn
+    
+    - name: "Включение и запуск сервиса OpenVPN"
+      systemd:
+        name: openvpn
+        enabled: yes
+        state: started
+        daemon_reload: yes
+      when: "'vpn_servers' in group_names"
 
     # === 6. Генерация клиентских конфигов ===
     - name: "Копирование скрипта генерации клиентских конфигов"
