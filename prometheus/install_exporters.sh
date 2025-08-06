@@ -46,7 +46,6 @@ install_node_exporter() {
     sudo useradd --no-create-home --shell /bin/false node_exporter || echo "User node_exporter already exists"
     sudo chown node_exporter:node_exporter /usr/local/bin/node_exporter
 
-    # Создаем временный файл
     TMP_FILE=$(mktemp)
     cat > "$TMP_FILE" <<EOF
 [Unit]
@@ -62,7 +61,6 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-    # Копируем с правами root
     sudo cp "$TMP_FILE" /etc/systemd/system/node_exporter.service
     sudo chmod 644 /etc/systemd/system/node_exporter.service
     rm "$TMP_FILE"
@@ -74,25 +72,29 @@ EOF
     sudo systemctl status node_exporter --no-pager
 }
 
-# Установка openvpn_exporter
+# Установка openvpn_exporter (kumina)
 install_openvpn_exporter() {
-    echo "Installing patrickjahns/openvpn_exporter for VPN server $VPN_IP:$VPN_PORT..."
-    wget https://github.com/patrickjahns/openvpn_exporter/releases/download/v1.1.2/openvpn_exporter-linux-amd64 -O /tmp/openvpn_exporter
-    sudo mv /tmp/openvpn_exporter /usr/local/bin/
-    sudo chmod +x /usr/local/bin/openvpn_exporter
+    echo "Installing kumina/openvpn_exporter for VPN server $VPN_IP:$VPN_PORT..."
+    
+    # Версия kumina/openvpn_exporter, последняя стабильная
+    local VERSION="0.2.1"
+    local URL="https://github.com/kumina/openvpn_exporter/releases/download/v${VERSION}/openvpn_exporter-${VERSION}.linux-amd64.tar.gz"
+    
+    wget "$URL" -O /tmp/openvpn_exporter.tar.gz
+    tar -xzf /tmp/openvpn_exporter.tar.gz -C /tmp
+    sudo mv /tmp/openvpn_exporter-${VERSION}.linux-amd64/openvpn_exporter /usr/local/bin/
     sudo useradd --no-create-home --shell /bin/false openvpn_exporter || echo "User openvpn_exporter already exists"
     sudo chown openvpn_exporter:openvpn_exporter /usr/local/bin/openvpn_exporter
-
-    # Создаем переменные окружения (правильный способ конфигурации для этого экспортера)
+    
     TMP_FILE=$(mktemp)
     cat > "$TMP_FILE" <<EOF
 [Unit]
-Description=OpenVPN Exporter (patrickjahns)
+Description=OpenVPN Exporter (kumina)
 After=network.target
 
 [Service]
 User=openvpn_exporter
-ExecStart=/usr/local/bin/openvpn_exporter --web.address 0.0.0.0:$VPN_PORT --status-file /etc/openvpn/openvpn-status.log
+ExecStart=/usr/local/bin/openvpn_exporter --openvpn.status-path /etc/openvpn/openvpn-status.log --web.listen-address 0.0.0.0:$VPN_PORT
 Restart=always
 
 [Install]
@@ -105,13 +107,13 @@ EOF
 
     sudo systemctl daemon-reload
     sudo systemctl enable --now openvpn_exporter
-    
+
     echo "Service configuration:"
-    echo "Status Path: /etc/openvpn/server/openvpn-status.log"
+    echo "Status Path: /etc/openvpn/openvpn-status.log"
     echo "Server IP: $VPN_IP"
     echo "Server Port: $VPN_PORT"
     echo "Web Listen Port: $VPN_PORT"
-    
+
     echo "Service status:"
     sudo systemctl status openvpn_exporter --no-pager
 }
@@ -120,16 +122,12 @@ EOF
 install_blackbox_exporter() {
     echo "Installing blackbox_exporter..."
     
-    # Скачиваем и распаковываем бинарник
     wget https://github.com/prometheus/blackbox_exporter/releases/download/v0.24.0/blackbox_exporter-0.24.0.linux-amd64.tar.gz -O /tmp/blackbox_exporter.tar.gz
     tar -xzf /tmp/blackbox_exporter.tar.gz -C /tmp
     sudo mv /tmp/blackbox_exporter-0.24.0.linux-amd64/blackbox_exporter /usr/local/bin/
-    
-    # Создаем пользователя
     sudo useradd --no-create-home --shell /bin/false blackbox_exporter || echo "User blackbox_exporter already exists"
     sudo chown blackbox_exporter:blackbox_exporter /usr/local/bin/blackbox_exporter
 
-    # Создаем кастомный конфиг
     sudo mkdir -p /etc/blackbox_exporter
     sudo tee /etc/blackbox_exporter/config.yml > /dev/null <<'EOF'
 modules:
@@ -153,7 +151,6 @@ modules:
       preferred_ip_protocol: "ip4"
 EOF
 
-    # Создаем systemd unit файл
     sudo tee /etc/systemd/system/blackbox_exporter.service > /dev/null <<'EOF'
 [Unit]
 Description=Blackbox Exporter
@@ -170,14 +167,12 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-    # Устанавливаем права
     sudo chmod 644 /etc/blackbox_exporter/config.yml
     sudo chmod 644 /etc/systemd/system/blackbox_exporter.service
 
-    # Перезагружаем и запускаем
     sudo systemctl daemon-reload
     sudo systemctl enable --now blackbox_exporter
-    
+
     echo "blackbox_exporter installed and started (port 9115)!"
     echo "Custom config created at /etc/blackbox_exporter/config.yml"
     echo "Service status:"

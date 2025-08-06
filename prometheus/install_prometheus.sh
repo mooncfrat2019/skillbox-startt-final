@@ -71,10 +71,25 @@ fi
 if [ -n "$BLACKBOX_EXPORTER_IP" ]; then
     cat >> "$TMP_CONF" <<EOF
 
-  - job_name: "blackbox"
+  - job_name: "blackbox_tcp"
     metrics_path: /probe
     params:
-      module: [tcp_connect, icmp]
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+$(printf "          - %s\n" "${BLACKBOX_TARGETS[@]}")
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "$BLACKBOX_EXPORTER_IP:9115"
+
+  - job_name: "blackbox_icmp"
+    metrics_path: /probe
+    params:
+      module: [icmp]
     static_configs:
       - targets:
 $(printf "          - %s\n" "${BLACKBOX_TARGETS[@]}")
