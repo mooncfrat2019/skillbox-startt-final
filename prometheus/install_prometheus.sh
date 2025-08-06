@@ -34,12 +34,19 @@ while [ "$#" -gt 0 ]; do
 done
 
 # Установка Prometheus v3.5.0
+echo "Installing Prometheus v3.5.0..."
 wget https://github.com/prometheus/prometheus/releases/download/v3.5.0/prometheus-3.5.0.linux-amd64.tar.gz -O /tmp/prometheus.tar.gz
 tar -xzf /tmp/prometheus.tar.gz -C /tmp
-sudo mv /tmp/prometheus-3.5.0.linux-amd64 /opt/prometheus
+
+# Создаем директории с правильными правами
+sudo mkdir -p /opt/prometheus
+sudo chown -R $USER:$USER /opt/prometheus
+mv /tmp/prometheus-3.5.0.linux-amd64/* /opt/prometheus/
 
 # Генерация конфига prometheus.yml
-cat > /opt/prometheus/prometheus.yml <<EOF
+echo "Configuring Prometheus..."
+TMP_CONF=$(mktemp)
+cat > "$TMP_CONF" <<EOF
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -52,7 +59,7 @@ EOF
 
 # Добавляем OpenVPN-экспортер, если указан
 if [ -n "$OPENVPN_EXPORTER_IP" ]; then
-    cat >> /opt/prometheus/prometheus.yml <<EOF
+    cat >> "$TMP_CONF" <<EOF
 
   - job_name: "openvpn_exporter"
     static_configs:
@@ -62,7 +69,7 @@ fi
 
 # Добавляем blackbox_exporter, если указан
 if [ -n "$BLACKBOX_EXPORTER_IP" ]; then
-    cat >> /opt/prometheus/prometheus.yml <<EOF
+    cat >> "$TMP_CONF" <<EOF
 
   - job_name: "blackbox"
     metrics_path: /probe
@@ -81,23 +88,30 @@ $(printf "          - %s\n" "${BLACKBOX_TARGETS[@]}")
 EOF
 fi
 
+# Копируем конфиг с правильными правами
+sudo cp "$TMP_CONF" /opt/prometheus/prometheus.yml
+sudo chown prometheus:prometheus /opt/prometheus/prometheus.yml
+rm "$TMP_CONF"
+
 # Проверка конфига
+echo "Validating configuration..."
 if ! /opt/prometheus/promtool check config /opt/prometheus/prometheus.yml; then
     echo "Error: Invalid Prometheus config!"
     exit 1
 fi
 
 # Создание systemd-юнита
-cat > /etc/systemd/system/prometheus.service <<EOF
+TMP_SERVICE=$(mktemp)
+cat > "$TMP_SERVICE" <<EOF
 [Unit]
 Description=Prometheus Server
 After=network.target
 
 [Service]
 User=prometheus
-ExecStart=/opt/prometheus/prometheus \
-    --config.file=/opt/prometheus/prometheus.yml \
-    --storage.tsdb.path=/opt/prometheus/data \
+ExecStart=/opt/prometheus/prometheus \\
+    --config.file=/opt/prometheus/prometheus.yml \\
+    --storage.tsdb.path=/opt/prometheus/data \\
     --web.listen-address=0.0.0.0:9090
 Restart=always
 
@@ -105,13 +119,33 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-# Запуск Prometheus
-sudo useradd --no-create-home --shell /bin/false prometheus
+sudo cp "$TMP_SERVICE" /etc/systemd/system/prometheus.service
+sudo chmod 644 /etc/systemd/system/prometheus.service
+rm "$TMP_SERVICE"
+
+# Настройка пользователя и прав
+echo "Setting up permissions..."
+sudo useradd --no-create-home --shell /bin/false prometheus 2>/dev/null || echo "User prometheus already exists, continuing..."
 sudo chown -R prometheus:prometheus /opt/prometheus
+
+# Запуск Prometheus
+echo "Starting Prometheus..."
 sudo systemctl daemon-reload
 sudo systemctl enable --now prometheus
 
-echo "Prometheus v3.5.0 has been configured and started!"
-echo "Node Exporters: ${NODE_EXPORTER_IPS[*]}"
-[ -n "$OPENVPN_EXPORTER_IP" ] && echo "OpenVPN Exporter: $OPENVPN_EXPORTER_IP"
-[ -n "$BLACKBOX_EXPORTER_IP" ] && echo "Blackbox Exporter: $BLACKBOX_EXPORTER_IP monitoring targets: ${BLACKBOX_TARGETS[*]}"
+# Проверка статуса
+echo "Checking Prometheus status..."
+if ! sudo systemctl status prometheus --no-pager; then
+    echo "Error starting Prometheus!"
+    sudo journalctl -u prometheus -n 50 --no-pager
+    exit 1
+fi
+
+# Вывод информации о конфигурации
+echo -e "\nPrometheus v3.5.0 has been successfully configured!"
+echo "===================================================="
+echo "Node Exporters:    ${NODE_EXPORTER_IPS[*]}"
+[ -n "$OPENVPN_EXPORTER_IP" ] && echo "OpenVPN Exporter:  $OPENVPN_EXPORTER_IP:9176"
+[ -n "$BLACKBOX_EXPORTER_IP" ] && echo -e "Blackbox Exporter: $BLACKBOX_EXPORTER_IP:9115\nMonitoring targets:\n$(printf '  - %s\n' "${BLACKBOX_TARGETS[@]}")"
+echo "Prometheus Web UI: http://$PROMETHEUS_IP:9090"
+echo "===================================================="
