@@ -1,7 +1,7 @@
 name: prepare_services.yml
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "staging" ]
     paths:
       - 'terraform/**'
       - 'ansible/**'
