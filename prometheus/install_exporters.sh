@@ -40,7 +40,7 @@ fi
 # Установка node_exporter (без изменений)
 install_node_exporter() {
     echo "Installing node_exporter..."
-    wget https://github.com/prometheus/node_exporter/releases/download/v1.7.1/node_exporter-1.7.1.linux-amd64.tar.gz -O /tmp/node_exporter.tar.gz
+    wget https://github.com/prometheus/node_exporter/releases/download/v1.9.1/node_exporter-1.9.1.linux-amd64.tar.gz -O /tmp/node_exporter.tar.gz
     tar -xzf /tmp/node_exporter.tar.gz -C /tmp
     sudo mv /tmp/node_exporter-1.6.1.linux-amd64/node_exporter /usr/local/bin/
     sudo useradd --no-create-home --shell /bin/false node_exporter
