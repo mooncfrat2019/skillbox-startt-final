@@ -37,16 +37,17 @@ if [ "$IS_VPN_SERVER" = true ] && [ -z "$VPN_IP" ]; then
     exit 1
 fi
 
-# Установка node_exporter (без изменений)
+# Установка node_exporter
 install_node_exporter() {
     echo "Installing node_exporter..."
     wget https://github.com/prometheus/node_exporter/releases/download/v1.9.1/node_exporter-1.9.1.linux-amd64.tar.gz -O /tmp/node_exporter.tar.gz
     tar -xzf /tmp/node_exporter.tar.gz -C /tmp
-    sudo mv /tmp/node_exporter-1.6.1.linux-amd64/node_exporter /usr/local/bin/
+    sudo mv /tmp/node_exporter-1.9.1.linux-amd64/node_exporter /usr/local/bin/
     sudo useradd --no-create-home --shell /bin/false node_exporter
     sudo chown node_exporter:node_exporter /usr/local/bin/node_exporter
 
-    cat > /etc/systemd/system/node_exporter.service <<EOF
+    # Правильный способ записи файла с sudo
+    sudo tee /etc/systemd/system/node_exporter.service > /dev/null <<EOF
 [Unit]
 Description=Node Exporter
 After=network.target
@@ -65,7 +66,7 @@ EOF
     echo "node_exporter installed and started!"
 }
 
-# Установка openvpn_exporter (с указанием IP и порта)
+# Установка openvpn_exporter
 install_openvpn_exporter() {
     echo "Installing patrickjahns/openvpn_exporter for VPN server $VPN_IP:$VPN_PORT..."
     wget https://github.com/patrickjahns/openvpn_exporter/releases/download/v1.1.2/openvpn_exporter-linux-amd64 -O /tmp/openvpn_exporter
@@ -76,23 +77,23 @@ install_openvpn_exporter() {
 
     # Конфиг с переданным IP и портом
     sudo mkdir -p /etc/openvpn_exporter
-    cat > /etc/openvpn_exporter/config.yaml <<EOF
+    sudo tee /etc/openvpn_exporter/config.yaml > /dev/null <<EOF
 openvpn:
   status_path: "/etc/openvpn/server/openvpn-status.log"
   server_ip: "$VPN_IP"
-  server_port: "$VPN_PORT"  # Опционально, если используется нестандартный порт
+  server_port: "$VPN_PORT"
 EOF
 
-    # Systemd-юнит с указанием порта метрик
-    cat > /etc/systemd/system/openvpn_exporter.service <<EOF
+    # Systemd-юнит
+    sudo tee /etc/systemd/system/openvpn_exporter.service > /dev/null <<EOF
 [Unit]
 Description=OpenVPN Exporter (patrickjahns)
 After=network.target
 
 [Service]
 User=openvpn_exporter
-ExecStart=/usr/local/bin/openvpn_exporter \
-    --config.file=/etc/openvpn_exporter/config.yaml \
+ExecStart=/usr/local/bin/openvpn_exporter \\
+    --config.file=/etc/openvpn_exporter/config.yaml \\
     --web.listen-address=:$VPN_PORT
 Restart=always
 
@@ -105,7 +106,7 @@ EOF
     echo "openvpn_exporter (v1.1.2) installed and started on port $VPN_PORT!"
 }
 
-# Установка blackbox_exporter (без изменений)
+# Установка blackbox_exporter
 install_blackbox_exporter() {
     echo "Installing blackbox_exporter..."
     wget https://github.com/prometheus/blackbox_exporter/releases/download/v0.24.0/blackbox_exporter-0.24.0.linux-amd64.tar.gz -O /tmp/blackbox_exporter.tar.gz
@@ -116,7 +117,7 @@ install_blackbox_exporter() {
     sudo useradd --no-create-home --shell /bin/false blackbox_exporter
     sudo chown blackbox_exporter:blackbox_exporter /usr/local/bin/blackbox_exporter
 
-    cat > /etc/systemd/system/blackbox_exporter.service <<EOF
+    sudo tee /etc/systemd/system/blackbox_exporter.service > /dev/null <<EOF
 [Unit]
 Description=Blackbox Exporter
 After=network.target
