@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# справка
+# Справка
 show_help() {
-  echo "Usage: $0 <admin-email> [options]"
+  echo "Usage: sudo $0 <admin-email> [options]"
   echo ""
   echo "Required:"
   echo "  <admin-email>    Email address for receiving alerts"
@@ -15,9 +15,15 @@ show_help() {
   echo "  --smtp-tls       Enable TLS (true/false, default: true)"
   echo ""
   echo "Example:"
-  echo "  $0 admin@example.com --smtp-from alerts@example.com --smtp-user alerts@example.com --smtp-pass 'password' --smtp-host 'smtp.mailprovider.com:465'"
+  echo "  sudo $0 admin@example.com --smtp-from alerts@example.com --smtp-user alerts@example.com --smtp-pass 'password' --smtp-host 'smtp.mailprovider.com:465'"
   exit 1
 }
+
+# Проверка прав
+if [ "$(id -u)" -ne 0 ]; then
+  echo "This script must be run as root!"
+  show_help
+fi
 
 # Проверка наличия обязательного аргумента
 if [ $# -lt 1 ]; then
@@ -74,19 +80,21 @@ if [ -z "$SMTP_PASS" ]; then
 fi
 
 # Пути к файлам конфигурации
-ALERTS_FILE="/etc/prometheus/alerts.yml"
-ALERTMANAGER_FILE="/etc/alertmanager/alertmanager.yml"
+ALERTS_FILE="/opt/prometheus/alerts.yml"
+ALERTMANAGER_FILE="/opt/prometheus/alertmanager.yml"
 
 # Создаем директории
-mkdir -p /etc/prometheus /etc/alertmanager
+mkdir -p /opt/prometheus
+chown prometheus:prometheus /opt/prometheus
 
-# 1. Создаем файл алертов (без изменений)
-cat > $ALERTS_FILE <<'EOF'
+# 1. Создаем файл алертов с использованием временного файла
+TMP_ALERTS=$(mktemp)
+cat > "$TMP_ALERTS" <<'EOF'
 groups:
 - name: vm-alerts
   rules:
   - alert: HighCPU
-    expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100 > 90
+    expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
     for: 5m
     labels:
       severity: warning
@@ -141,17 +149,8 @@ groups:
       summary: "OpenVPN exporter is down on {{ $labels.instance }}"
       description: "OpenVPN process or exporter is not running."
 
-  - alert: OpenVPNPortDown
-    expr: probe_success{job="blackbox", target=~".*:1194"} == 0
-    for: 2m
-    labels:
-      severity: critical
-    annotations:
-      summary: "OpenVPN port 1194 is unreachable on {{ $labels.instance }}"
-      description: "TCP probe failed for OpenVPN port."
-
-  - alert: HighVPNPing
-    expr: avg_over_time(probe_duration_seconds{job="blackbox", target=~"icmp://.*"}[5m]) > 0.5
+  - alert: HighVPNServerPing
+    expr: avg_over_time(probe_duration_seconds{job="blackbox", instance="217.16.18.112:1194"}[5m]) > 5
     for: 5m
     labels:
       severity: warning
@@ -159,18 +158,32 @@ groups:
       summary: "High ping latency to VPN server ({{ $value }}s)"
       description: "Average ping latency exceeds 500ms."
 
-  - alert: HighVPNReconnects
-    expr: increase(openvpn_client_reconnections_total[1h]) > 10
-    for: 30m
+  - alert: OpenVPNColletionError
+    expr: increase(openvpn_collection_error[1h]) > 100
+    for: 5m
     labels:
       severity: warning
     annotations:
-      summary: "High OpenVPN reconnects on {{ $labels.instance }}"
-      description: "{{ $value }} reconnects in the last hour."
+      summary: "High OpenVPN error collection on {{ $labels.instance }}"
+      description: "{{ $value }} errors in the 5 min for 1 last hour."
+
+  - alert: HightVPNConnectionsCount
+    expr: openvpn_connections > 100
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High OpenVPN connections on {{ $labels.instance }}"
+      description: "{{ $value }} reconnects in the last 5 min."
 EOF
 
-# 2. Настраиваем Alertmanager с переданными параметрами
-cat > $ALERTMANAGER_FILE <<EOF
+sudo cp "$TMP_ALERTS" "$ALERTS_FILE"
+sudo chown prometheus:prometheus "$ALERTS_FILE"
+rm "$TMP_ALERTS"
+
+# 2. Настраиваем Alertmanager с временным файлом
+TMP_ALERTMANAGER=$(mktemp)
+cat > "$TMP_ALERTMANAGER" <<EOF
 global:
   smtp_smarthost: '$SMTP_HOST'
   smtp_from: '$SMTP_FROM'
@@ -192,25 +205,47 @@ receivers:
     send_resolved: true
 EOF
 
+sudo cp "$TMP_ALERTMANAGER" "$ALERTMANAGER_FILE"
+sudo chown prometheus:prometheus "$ALERTMANAGER_FILE"
+rm "$TMP_ALERTMANAGER"
+
+# Установка Alertmanager если не установлен
+if ! command -v amtool &> /dev/null; then
+  echo "Installing prometheus-alertmanager..."
+  sudo apt-get update
+  sudo apt-get install -y prometheus-alertmanager
+fi
+
 # 3. Проверяем конфигурацию
-if ! /usr/local/bin/promtool check rules $ALERTS_FILE; then
+echo "Validating configuration..."
+if ! /opt/prometheus/promtool check rules "$ALERTS_FILE"; then
   echo "ERROR: Invalid alerts configuration"
   exit 1
 fi
 
-if ! /usr/local/bin/amtool check-config $ALERTMANAGER_FILE; then
+if ! amtool check-config "$ALERTMANAGER_FILE"; then
   echo "ERROR: Invalid Alertmanager configuration"
   exit 1
 fi
 
 # 4. Обновляем конфиг Prometheus
-if ! grep -q "rule_files:" /etc/prometheus/prometheus.yml; then
-  echo -e "\nrule_files:\n  - '$ALERTS_FILE'" >> /etc/prometheus/prometheus.yml
+if ! grep -q "rule_files:" /opt/prometheus/prometheus.yml; then
+  echo "Adding rule_files directive to prometheus.yml"
+  sudo tee -a /opt/prometheus/prometheus.yml > /dev/null <<EOF
+
+rule_files:
+  - '/opt/prometheus/alerts.yml'
+EOF
+  sudo chown prometheus:prometheus /opt/prometheus/prometheus.yml
+else
+  echo "rule_files directive already exists in prometheus.yml, skipping..."
 fi
 
 # 5. Перезапускаем сервисы
+echo "Restarting services..."
 systemctl restart prometheus
-systemctl restart alertmanager
+systemctl restart prometheus-alertmanager
+systemctl enable prometheus-alertmanager
 
 # Выводим информацию о настройках
 echo -e "\nConfiguration applied successfully!"
@@ -222,4 +257,12 @@ echo "SMTP username:      $SMTP_USER"
 echo "SMTP TLS enabled:   $SMTP_TLS"
 echo "Alerts file:        $ALERTS_FILE"
 echo "Alertmanager config: $ALERTMANAGER_FILE"
+echo "Prometheus config:  /opt/prometheus/prometheus.yml"
 echo "====================================="
+
+# Проверка статуса сервисов
+echo -e "\nService status:"
+echo "Prometheus:"
+systemctl status prometheus --no-pager | head -n 5
+echo -e "\nAlertmanager:"
+systemctl status prometheus-alertmanager --no-pager | head -n 5
